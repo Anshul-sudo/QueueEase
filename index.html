@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QueueEase – Multi-Server Customer Service Simulator (DSA Project)</title>
+  <meta name="description" content="A Data Structures and Algorithms (DSA) customer queue management simulator analyzing waiting times, queue lengths, server utilization, and workload imbalance." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ==================== HEADER ==================== -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <h1 class="brand-title">QueueEase</h1>
+        <p class="brand-subtitle">Multi-Server Customer Service Simulator &bull; DSA Queue Project</p>
+      </div>
+      <div class="header-controls">
+        <div class="status-indicator">
+          <span class="status-label">Status:</span>
+          <span id="simStatusBadge" class="badge badge-stopped">Stopped</span>
+          <span class="timer-display" id="timerDisplay">Time: 0s</span>
+        </div>
+        <div class="btn-group">
+          <button id="btnStart" class="btn btn-primary">Start Simulation</button>
+          <button id="btnPause" class="btn btn-secondary" disabled>Pause</button>
+          <button id="btnReset" class="btn btn-outline">Reset</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== NOTIFICATION / ALERT BAR ==================== -->
+  <div class="container">
+    <div id="feedbackAlert" class="alert hidden" role="alert" aria-live="polite"></div>
+  </div>
+
+  <main class="container main-layout">
+
+    <!-- ==================== TOP ROW: SETTINGS & ADD CUSTOMER ==================== -->
+    <section class="grid-2col">
+
+      <!-- Section B: Simulation Settings -->
+      <div class="card">
+        <h2 class="card-title">Simulation Settings</h2>
+        <form id="settingsForm" class="form-grid">
+          <div class="form-group">
+            <label for="inputCounters">Service Counters (1 – 5)</label>
+            <input type="number" id="inputCounters" min="1" max="5" value="3" required />
+            <small class="form-hint">Number of active service counters</small>
+          </div>
+
+          <div class="form-group">
+            <label for="selectPattern">Arrival Pattern</label>
+            <select id="selectPattern">
+              <option value="regular">Regular (fixed 3s intervals)</option>
+              <option value="random">Random (1s – 6s intervals)</option>
+              <option value="burst">Burst (waves of customers)</option>
+            </select>
+            <small class="form-hint">Pattern for auto-generated customers</small>
+          </div>
+
+          <div class="form-group">
+            <label for="inputAvgService">Average Service Time (sec)</label>
+            <input type="number" id="inputAvgService" min="1" max="60" value="6" required />
+            <small class="form-hint">Approximate service duration per customer</small>
+          </div>
+
+          <div class="form-group">
+            <label for="inputDuration">Simulation Duration (sec)</label>
+            <input type="number" id="inputDuration" min="10" max="600" value="120" required />
+            <small class="form-hint">Max duration limit</small>
+          </div>
+
+          <div class="form-group full-width">
+            <label for="selectStrategy">Queue Scheduling Strategy</label>
+            <select id="selectStrategy">
+              <option value="shared">Single Shared FIFO Queue (Next Available Counter)</option>
+              <option value="separate">Separate Queues per Counter (Shortest Queue First)</option>
+            </select>
+            <small class="form-hint">How waiting customers are organized and dispatched</small>
+          </div>
+
+          <div class="form-actions full-width">
+            <button type="submit" id="btnApplySettings" class="btn btn-secondary">Apply Settings</button>
+            <span id="settingsFeedback" class="text-feedback"></span>
+          </div>
+        </form>
+      </div>
+
+      <!-- Section C: Add Customer -->
+      <div class="card">
+        <h2 class="card-title">Add Customer</h2>
+        <form id="addCustomerForm" class="form-vertical">
+          <div class="form-group">
+            <label for="inputCustomerName">Customer Name or ID (Optional)</label>
+            <input type="text" id="inputCustomerName" placeholder="e.g. C101 or John Doe (auto-named if empty)" />
+          </div>
+
+          <div class="form-group">
+            <label for="selectServiceType">Service Type (Optional)</label>
+            <select id="selectServiceType">
+              <option value="General Inquiry">General Inquiry</option>
+              <option value="Account Services">Account Services</option>
+              <option value="Cash Deposit / Withdrawal">Cash Deposit / Withdrawal</option>
+              <option value="Loan Application">Loan Application</option>
+              <option value="Technical Support">Technical Support</option>
+            </select>
+          </div>
+
+          <div class="btn-cluster">
+            <button type="submit" id="btnAddCustomer" class="btn btn-primary">+ Add Customer</button>
+          </div>
+        </form>
+
+        <hr class="divider" />
+
+        <div class="auto-generate-section">
+          <label class="section-sublabel">Auto-Generate Test Customers</label>
+          <div class="btn-cluster">
+            <button type="button" id="btnGen1" class="btn btn-outline btn-sm">+ 1 Customer</button>
+            <button type="button" id="btnGen5" class="btn btn-outline btn-sm">+ 5 Customers</button>
+            <button type="button" id="btnGenBurst" class="btn btn-outline btn-sm">+ Burst (10 Customers)</button>
+          </div>
+          <small class="form-hint">Quickly inject customers to test queue dynamics and capacity.</small>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== SERVICE COUNTERS (Section E) ==================== -->
+    <section class="card">
+      <div class="section-header">
+        <h2 class="card-title">Service Counters</h2>
+        <span class="text-muted" id="activeStrategyNotice">Strategy: Single Shared Queue</span>
+      </div>
+
+      <div id="countersContainer" class="counters-grid">
+        <!-- Generated dynamically via script.js -->
+      </div>
+    </section>
+
+    <!-- ==================== CUSTOMER QUEUE (Section D) ==================== -->
+    <section class="card">
+      <div class="section-header">
+        <h2 class="card-title">
+          Customer Waiting Queue
+          <span id="queueCountBadge" class="counter-badge">0 waiting</span>
+        </h2>
+        <span id="queueStrategyInfo" class="text-muted">FIFO order applied</span>
+      </div>
+
+      <div class="table-responsive">
+        <table class="data-table" id="queueTable">
+          <thead>
+            <tr>
+              <th>Position</th>
+              <th>Customer ID / Name</th>
+              <th>Arrival Time</th>
+              <th>Service Type</th>
+              <th>Waiting Time</th>
+              <th>Target / Assigned</th>
+            </tr>
+          </thead>
+          <tbody id="queueTableBody">
+            <tr class="empty-row">
+              <td colspan="6">No customers currently in the waiting queue.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== USEFUL STATISTICS (Section F) ==================== -->
+    <section class="card">
+      <h2 class="card-title">Useful Statistics</h2>
+      <p class="section-subtitle">Real-time numerical performance metrics (clean numbers, no graphs).</p>
+
+      <div class="stats-grid">
+        <div class="stat-box">
+          <span class="stat-label">Total Arrived</span>
+          <span class="stat-value" id="statTotalArrived">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Total Served</span>
+          <span class="stat-value" id="statTotalServed">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Currently Waiting</span>
+          <span class="stat-value" id="statCurrentlyWaiting">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Max Queue Length</span>
+          <span class="stat-value" id="statMaxQueue">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Average Waiting Time</span>
+          <span class="stat-value" id="statAvgWait">0.0s</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Longest Waiting Time</span>
+          <span class="stat-value" id="statLongestWait">0.0s</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Avg Server Utilization</span>
+          <span class="stat-value" id="statAvgUtilization">0.0%</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Workload Imbalance</span>
+          <span class="stat-value" id="statWorkloadImbalance">0.0s</span>
+        </div>
+      </div>
+
+      <!-- Counter Utilization Breakdown Table -->
+      <h3 class="subsection-title">Counter Utilization Breakdown</h3>
+      <div class="table-responsive">
+        <table class="data-table" id="utilizationTable">
+          <thead>
+            <tr>
+              <th>Counter Number</th>
+              <th>Status</th>
+              <th>Customers Served</th>
+              <th>Total Busy Time (sec)</th>
+              <th>Utilization (%)</th>
+            </tr>
+          </thead>
+          <tbody id="utilizationTableBody">
+            <!-- Populated via script.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== STRATEGY COMPARISON (Section 5) ==================== -->
+    <section class="card">
+      <div class="section-header">
+        <div>
+          <h2 class="card-title">Compare Queue Strategies</h2>
+          <p class="section-subtitle">
+            Compare <strong>Single Shared Queue</strong> vs <strong>Separate Queue per Counter (Shortest First)</strong> under identical customer workloads.
+          </p>
+        </div>
+        <button id="btnRunComparison" class="btn btn-primary btn-sm">Run Strategy Comparison Benchmark</button>
+      </div>
+
+      <div class="table-responsive">
+        <table class="data-table compare-table" id="comparisonTable">
+          <thead>
+            <tr>
+              <th>Performance Metric</th>
+              <th>Single Shared Queue</th>
+              <th>Separate Queues (Shortest First)</th>
+              <th>Difference / Advantage</th>
+            </tr>
+          </thead>
+          <tbody id="comparisonTableBody">
+            <tr>
+              <td colspan="4" class="text-center text-muted">Click <strong>"Run Strategy Comparison Benchmark"</strong> to test both strategies with 30 identical test customers.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="form-hint" style="margin-top: 10px;">
+        <strong>OS Insight:</strong> A single shared FIFO queue avoids counter idle time (starvation), ensuring that no counter stays idle while any customer waits in the system.
+      </p>
+    </section>
+
+    <!-- ==================== CUSTOMER HISTORY & EXPORT (Section G) ==================== -->
+    <section class="card">
+      <div class="section-header">
+        <div>
+          <h2 class="card-title">Customer Service History</h2>
+          <p class="section-subtitle">Chronological record of completed customer services.</p>
+        </div>
+        <div class="btn-group">
+          <button id="btnExportCSV" class="btn btn-secondary btn-sm" disabled>Export History as CSV</button>
+          <button id="btnClearHistory" class="btn btn-outline btn-sm" disabled>Clear History</button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="data-table" id="historyTable">
+          <thead>
+            <tr>
+              <th>Customer ID / Name</th>
+              <th>Service Type</th>
+              <th>Arrival Time</th>
+              <th>Service Start</th>
+              <th>Completion Time</th>
+              <th>Total Waiting Time</th>
+              <th>Assigned Counter</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody">
+            <tr class="empty-row">
+              <td colspan="7">No completed customer records yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== HOW IT WORKS & DSA PRINCIPLES ==================== -->
+    <section class="card">
+      <h2 class="card-title">Data Structures & Algorithms (DSA) Concepts Explained</h2>
+      <div class="grid-2col" style="margin-top: 14px;">
+        <div class="info-cell">
+          <h4>1. Queue Abstract Data Type (FIFO)</h4>
+          <p>Implements First-In, First-Out (FIFO) queue semantics. Arrival pushes customers to the rear (<code>enqueue</code>), while available servers pop from the front (<code>dequeue</code>) in guaranteed <code>O(1)</code> time.</p>
+        </div>
+        <div class="info-cell">
+          <h4>2. Multi-Server Queue Topologies</h4>
+          <p>Compares a <strong>Single Global Shared Queue</strong> (centralized FIFO dispatch) vs. <strong>Multiple Dedicated Queues</strong> with a greedy routing heuristic (assigning incoming customers to the shortest queue).</p>
+        </div>
+        <div class="info-cell">
+          <h4>3. Workload Imbalance Analysis</h4>
+          <p>Quantifies server load disparity: <code>Imbalance = max(Busy Time) - min(Busy Time)</code>. Demonstrates how separate queues cause server starvation while others remain congested, whereas shared queues balance load.</p>
+        </div>
+        <div class="info-cell">
+          <h4>4. Arrival Pattern Dynamics & Complexity</h4>
+          <p>Analyzes waiting times and peak queue lengths across <strong>Regular</strong>, <strong>Random</strong>, and <strong>Burst</strong> arrival patterns. Overall simulation runs in <code>O(N)</code> time with <code>O(N)</code> space complexity.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <div class="container footer-content">
+      <p>QueueEase – Multi-Server Customer Service Simulator &bull; Data Structures & Algorithms (DSA) Project</p>
+      <p>Queue topologies, waiting time analysis, server utilization, and workload imbalance simulation.</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
